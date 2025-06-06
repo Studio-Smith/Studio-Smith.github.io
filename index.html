@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Architecture portfolio of [Your Name], University of Michigan graduate student">
+  <meta name="keywords" content="architecture portfolio, [Your Name], University of Michigan, architectural design">
+  <title>[Your Name] - Architecture Portfolio</title>
+  <!-- Precompiled Tailwind CSS via jsDelivr -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- React and ReactDOM CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- Three.js and React Three Fiber CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@react-three/fiber@8.17.7/dist/react-three-fiber.umd.js"></script>
+  <style>
+    html, body, #root {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow-x: hidden;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    /* eslint-disable react/no-unknown-property */
+    const { useRef, useMemo, useLayoutEffect, forwardRef, useFrame } = React;
+    const { Canvas, useThree } = ReactThreeFiber;
+
+    const hexToNormalizedRGB = (hex) => {
+      hex = hex.replace("#", "");
+      return [
+        parseInt(hex.slice(0, 2), 16) / 255,
+        parseInt(hex.slice(2, 4), 16) / 255,
+        parseInt(hex.slice(4, 6), 16) / 255,
+      ];
+    };
+
+    const vertexShader = `
+      varying vec2 vUv;
+      varying vec3 vPosition;
+      void main() {
+        vPosition = position;
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+
+    const fragmentShader = `
+      varying vec2 vUv;
+      varying vec3 vPosition;
+      uniform float uTime;
+      uniform vec3 uColor;
+      uniform float uSpeed;
+      uniform float uScale;
+      uniform float uRotation;
+      uniform float uNoiseIntensity;
+      const float e = 2.71828182845904523536;
+      float noise(vec2 texCoord) {
+        float G = e;
+        vec2 r = (G * sin(G * texCoord));
+        return fract(r.x * r.y * (1.0 + texCoord.x));
+      }
+      vec2 rotateUvs(vec2 uv, float angle) {
+        float c = cos(angle);
+        float s = sin(angle);
+        mat2 rot = mat2(c, -s, s, c);
+        return rot * uv;
+      }
+      void main() {
+        float rnd = noise(gl_FragCoord.xy);
+        vec2 uv = rotateUvs(vUv * uScale, uRotation);
+        vec2 tex = uv * uScale;
+        float tOffset = uSpeed * uTime;
+        tex.y += 0.03 * sin(8.0 * tex.x - tOffset);
+        float pattern = 0.6 +
+          0.4 * sin(5.0 * (tex.x + tex.y +
+            cos(3.0 * tex.x + 5.0 * tex.y) +
+            0.02 * tOffset) +
+            sin(20.0 * (tex.x + tex.y - 0.1 * tOffset)));
+        vec4 col = vec4(uColor, 1.0) * vec4(pattern) - rnd / 15.0 * uNoiseIntensity;
+        col.a = 1.0;
+        gl_FragColor = col;
+      }
+    `;
+
+    const SilkPlane = forwardRef(function SilkPlane({ uniforms }, ref) {
+      const { viewport } = useThree();
+      useLayoutEffect(() => {
+        if (ref.current) {
+          ref.current.scale.set(viewport.width, viewport.height, 1);
+        }
+      }, [viewport]);
+      useFrame((_, delta) => {
+        ref.current.material.uniforms.uTime.value += 0.1 * delta;
+      });
+      return (
+        <mesh ref={ref}>
+          <planeGeometry args={[1, 1, 1, 1]} />
+          <shaderMaterial
+            uniforms={uniforms}
+            vertexShader={vertexShader}
+            fragmentShader={fragmentShader}
+          />
+        </mesh>
+      );
+    });
+
+    const Silk = ({ speed = 5, scale = 1, color = "#4B5EAA", noiseIntensity = 1.5, rotation = 0 }) => {
+      const meshRef = useRef();
+      const uniforms = useMemo(
+        () => ({
+          uSpeed: { value: speed },
+          uScale: { value: scale },
+          uNoiseIntensity: { value: noiseIntensity },
+          uColor: { value: new THREE.Color(...hexToNormalizedRGB(color)) },
+          uRotation: { value: rotation },
+          uTime: { value: 0 },
+        }),
+        [speed, scale, noiseIntensity, color, rotation]
+      );
+      return (
+        <Canvas dpr={[1, 2]} frameloop="always">
+          <SilkPlane ref={meshRef} uniforms={uniforms} />
+        </Canvas>
+      );
+    };
+
+    const App = () => {
+      return (
+        <div className="relative min-h-screen text-white">
+          {/* Silk Background */}
+          <div className="absolute inset-0 z-[-1]">
+            <Silk color="#4B5EAA" speed={3} scale={1} noiseIntensity={1.5} rotation={0} />
+          </div>
+          {/* Hero Section */}
+          <section className="min-h-screen flex flex-col items-center justify-center text-center px-4">
+            <h1 className="text-5xl md:text-7xl font-bold mb-4">[Your Name]</h1>
+            <p className="text-xl md:text-2xl mb-6">Graduate Architecture Student | University of Michigan</p>
+            <a
+              href="#projects"
+              className="bg-white text-black px-6 py-3 rounded-full text-lg font-semibold hover:bg-gray-200 transition"
+            >
+              View My Work
+            </a>
+          </section>
+          {/* Project Previews */}
+          <section id="projects" className="py-16 bg-gray-900">
+            <h2 className="text-4xl font-bold text-center mb-12">Selected Projects</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto px-4">
+              {/* Project Card 1 */}
+              <div className="bg-white text-black rounded-lg shadow-lg overflow-hidden transform hover:scale-105 hover:shadow-2xl transition-transform duration-300">
+                <img
+                  src="https://via.placeholder.com/400x300?text=Project+1"
+                  alt="Project 1"
+                  className="w-full h-48 object-cover"
+                />
+                <div className="p-4">
+                  <h3 className="text-xl font-semibold mb-2">Residential Design</h3>
+                  <p className="text-gray-600">A sustainable home design created during my graduate studies.</p>
+                </div>
+              </div>
+              {/* Project Card 2 */}
+              <div className="bg-white text-black rounded-lg shadow-lg overflow-hidden transform hover:scale-105 hover:shadow-2xl transition-transform duration-300">
+                <img
+                  src="https://via.placeholder.com/400x300?text=Project+2"
+                  alt="Project 2"
+                  className="w-full h-48 object-cover"
+                />
+                <div className="p-4">
+                  <h3 className="text-xl font-semibold mb-2">Urban Pavilion</h3>
+                  <p className="text-gray-600">A conceptual public space for community engagement.</p>
+                </div>
+              </div>
+              <!-- Project Card 3 -->
+              <div className="bg-white text-black rounded-lg shadow-lg overflow-hidden transform hover:scale-105 hover:shadow-2xl transition-transform duration-300">
+                <img
+                  src="https://via.placeholder.com/400x300?text=Project+3"
+                  alt="Project 3"
+                  className="w-full h-48 object-cover"
+                />
+                <div className="p-4">
+                  <h3 className="text-xl font-semibold mb-2">Commercial Complex</h3>
+                  <p className="text-gray-600">A mixed-use development from an internship project.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById("root"));
+  </script>
+  <!-- Babel CDN for JSX support -->
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.5/Babel.min.js"></script>
+</body>
+</html>
